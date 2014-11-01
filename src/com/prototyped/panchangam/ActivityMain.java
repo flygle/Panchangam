@@ -2,8 +2,11 @@ package com.prototyped.panchangam;
 
 import java.io.IOException;
 import java.text.DateFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.ResponseHandler;
@@ -36,21 +39,31 @@ public class ActivityMain extends Activity implements LocationListener
 	private String sunrise;
 	private String sunset;
 	private String urlString;
-	private String httpGetResult;
 	private HttpRequestTask httpRequestTask;
-	
+	private int slots[][]={
+							{8,5,7},
+							{2,4,6},
+							{7,3,5},
+							{5,2,4},
+							{6,1,3},
+							{4,7,2},
+							{3,6,1}
+							};
+	private int dayInWeek;
+	private boolean timeFormat;
     protected void onCreate(Bundle savedInstanceState) 
     {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         
         urlString="http://api.geonames.org/timezoneJSON?";
-        
+        timeFormat=android.text.format.DateFormat.is24HourFormat(this);
         textview=(TextView)findViewById(R.id.mainTextView);
     	
         locationManager=(LocationManager)getSystemService(Context.LOCATION_SERVICE);
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 60000, 1000, this);
         
+        makeToast("Recieving GPS coordinates");
         httpRequestTask=new HttpRequestTask();
     }
 
@@ -89,16 +102,16 @@ public class ActivityMain extends Activity implements LocationListener
     }
 
 
+	@SuppressWarnings("deprecation")
 	public void onLocationChanged(Location location) 
 	{
-		DateFormat dateformat=new SimpleDateFormat("dd-MM-yyyy");
+		DateFormat dateformat=new SimpleDateFormat("dd-MM-yyyy", Locale.ENGLISH);
 		Date date = new Date();
+		dayInWeek=date.getDay();
 		
 		latitude=location.getLatitude()+"";
 		longitude=location.getLongitude()+"";
 		time=dateformat.format(date);
-		
-		textview.setText(latitude+"\n"+longitude+"\n"+time);
 		
 		urlString+="lat="+latitude+
 					"&lng="+longitude+
@@ -159,7 +172,6 @@ public class ActivityMain extends Activity implements LocationListener
 
         protected void onPostExecute(String result) 
         {
-        	httpGetResult=result;
         	JSONObject jsonObject;
         	
         	try 
@@ -168,12 +180,58 @@ public class ActivityMain extends Activity implements LocationListener
 				sunrise=jsonObject.getString("sunrise");
 				sunset=jsonObject.getString("sunset");
 				
-				textview.setText(sunrise+"\n"+sunset);
+				Date dateSunrise;
+				Date dateSunset;
+				SimpleDateFormat sdf;
+				
+				if(timeFormat)
+				{
+					dateSunrise=new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ENGLISH).parse(sunrise);
+					dateSunset=new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ENGLISH).parse(sunset);
+					sdf=new SimpleDateFormat("HH:mm", Locale.ENGLISH);
+				}
+				else
+				{
+					dateSunrise=new SimpleDateFormat("yyyy-MM-dd hh:mm", Locale.ENGLISH).parse(sunrise);
+					dateSunset=new SimpleDateFormat("yyyy-MM-dd hh:mm", Locale.ENGLISH).parse(sunset);
+					sdf=new SimpleDateFormat("hh:mm", Locale.ENGLISH);
+				}
+				
+				Calendar start=Calendar.getInstance();
+				Calendar end=Calendar.getInstance();
+				String rakukalam="";
+				String yamagundam="";
+				String guligai="";
+				
+				long duration=dateSunset.getTime()-dateSunrise.getTime();
+				duration/=8;
+				
+				start.setTimeInMillis(dateSunrise.getTime()+((slots[dayInWeek][0]-1)*duration));
+				end.setTimeInMillis(dateSunrise.getTime()+((slots[dayInWeek][0])*duration));
+				rakukalam=sdf.format(start.getTime()) + " to " + sdf.format(end.getTime());
+				
+				start.setTimeInMillis(dateSunrise.getTime()+((slots[dayInWeek][1]-1)*duration));
+				end.setTimeInMillis(dateSunrise.getTime()+((slots[dayInWeek][1])*duration));
+				yamagundam=sdf.format(start.getTime()) + " to " + sdf.format(end.getTime());
+				
+				start.setTimeInMillis(dateSunrise.getTime()+((slots[dayInWeek][2]-1)*duration));
+				end.setTimeInMillis(dateSunrise.getTime()+((slots[dayInWeek][2])*duration));
+				guligai=sdf.format(start.getTime()) + " to " + sdf.format(end.getTime());
+				
+				textview.setText("Sunrise\n" + sunrise +
+									"\nSunset\n" + sunset +
+									"\n\nRakukalam\n" + rakukalam +
+									"\n\nYamagundam\n" + yamagundam +
+									"\n\nGuligai\n" + guligai);
 			} 
         	catch (JSONException e) 
         	{
 				e.printStackTrace();
 			}
+        	catch(ParseException e)
+        	{
+        		
+        	}
         }
     }
 	
