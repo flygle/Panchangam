@@ -18,6 +18,7 @@ import org.json.JSONObject;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -51,6 +52,7 @@ public class ActivityMain extends Activity implements LocationListener
 							};
 	private int dayInWeek;
 	private boolean timeFormat;
+	
     protected void onCreate(Bundle savedInstanceState) 
     {
         super.onCreate(savedInstanceState);
@@ -58,13 +60,21 @@ public class ActivityMain extends Activity implements LocationListener
         
         urlString="http://api.geonames.org/timezoneJSON?";
         timeFormat=android.text.format.DateFormat.is24HourFormat(this);
+        httpRequestTask=new HttpRequestTask();
         textview=(TextView)findViewById(R.id.mainTextView);
-    	
         locationManager=(LocationManager)getSystemService(Context.LOCATION_SERVICE);
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 60000, 1000, this);
+        
+        if(locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER))
+        {
+        	locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 1, this);
+        }
+        else
+        {
+        	startActivity(new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+        	locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 1, this);
+        }
         
         makeToast("Recieving GPS coordinates");
-        httpRequestTask=new HttpRequestTask();
     }
 
     protected void onResume()
@@ -101,39 +111,43 @@ public class ActivityMain extends Activity implements LocationListener
         return super.onOptionsItemSelected(item);
     }
 
-
+    public void initLocationManager()
+    {
+    	
+    }
+    
 	@SuppressWarnings("deprecation")
 	public void onLocationChanged(Location location) 
 	{
-		DateFormat dateformat=new SimpleDateFormat("dd-MM-yyyy", Locale.ENGLISH);
-		Date date = new Date();
-		dayInWeek=date.getDay();
+		if(!httpRequestTask.TASK_EXECUTED)
+		{
+			DateFormat dateformat=new SimpleDateFormat("dd-MM-yyyy", Locale.ENGLISH);
+			Date date = new Date();
+			dayInWeek=date.getDay();
 		
-		latitude=location.getLatitude()+"";
-		longitude=location.getLongitude()+"";
-		time=dateformat.format(date);
+			latitude=location.getLatitude()+"";
+			longitude=location.getLongitude()+"";
+			time=dateformat.format(date);
 		
-		urlString+="lat="+latitude+
-					"&lng="+longitude+
-					"&date="+time+
-					"&username=ranjith";
+			urlString+="lat="+latitude+
+						"&lng="+longitude+
+						"&date="+time+
+						"&username=ranjith";
 		
-		locationManager.removeUpdates(this);
-		
-		httpRequestTask.execute(urlString);
-		
-		makeToast("Requesting JSON data");
+			locationManager.removeUpdates(this);
+			httpRequestTask.execute(urlString);	
+		}
 	}
 
 	public void onProviderDisabled(String provider) 
 	{
-		makeToast("GPS turned off");
+		
 	}
 
 
 	public void onProviderEnabled(String provider) 
 	{
-		makeToast("GPS turned on");
+		
 	}
 
 	public void onStatusChanged(String provider, int status, Bundle bundle) 
@@ -143,13 +157,14 @@ public class ActivityMain extends Activity implements LocationListener
 	
 	private class HttpRequestTask extends AsyncTask<String, Void, String> 
     {
+		public boolean TASK_EXECUTED=false;
+		
         protected String doInBackground(String... url) 
         {
         	String result="";
-          
+        	TASK_EXECUTED=true;
             DefaultHttpClient httpClient = new DefaultHttpClient();
             HttpGet httpGetRequest=new HttpGet(url[0]);
-            
             ResponseHandler<String> responseHandler=new BasicResponseHandler();
         	
         	try
@@ -173,16 +188,20 @@ public class ActivityMain extends Activity implements LocationListener
         protected void onPostExecute(String result) 
         {
         	JSONObject jsonObject;
-        	
+        	Date dateSunrise;
+			Date dateSunset;
+			SimpleDateFormat sdf;
+			Calendar start=Calendar.getInstance();
+			Calendar end=Calendar.getInstance();
+			String rakukalam="";
+			String yamagundam="";
+			String guligai="";
+			
         	try 
         	{
-				jsonObject=new JSONObject(result);
+        		jsonObject=new JSONObject(result);
 				sunrise=jsonObject.getString("sunrise");
 				sunset=jsonObject.getString("sunset");
-				
-				Date dateSunrise;
-				Date dateSunset;
-				SimpleDateFormat sdf;
 				
 				if(timeFormat)
 				{
@@ -196,12 +215,6 @@ public class ActivityMain extends Activity implements LocationListener
 					dateSunset=new SimpleDateFormat("yyyy-MM-dd hh:mm", Locale.ENGLISH).parse(sunset);
 					sdf=new SimpleDateFormat("hh:mm", Locale.ENGLISH);
 				}
-				
-				Calendar start=Calendar.getInstance();
-				Calendar end=Calendar.getInstance();
-				String rakukalam="";
-				String yamagundam="";
-				String guligai="";
 				
 				long duration=dateSunset.getTime()-dateSunrise.getTime();
 				duration/=8;
@@ -230,7 +243,7 @@ public class ActivityMain extends Activity implements LocationListener
 			}
         	catch(ParseException e)
         	{
-        		
+        		e.printStackTrace();
         	}
         }
     }
